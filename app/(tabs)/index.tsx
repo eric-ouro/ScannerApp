@@ -1,70 +1,100 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+// App.js
+import { TouchableOpacity } from 'react-native';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, Button, Alert, Platform } from 'react-native';
+import { Camera, CameraView } from 'expo-camera';
+import { enableScreens } from 'react-native-screens';
 
-export default function HomeScreen() {
+enableScreens(); // Add this line at the top of your file
+
+export default function App() {
+  const [scanning, setScanning] = useState(false);
+  const [data, setData] = useState(null);
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(status === 'granted');
+    })();
+  }, []);
+
+  const onBarcodeScan = ({ data: scannedValue }: { data: string }) => {
+    console.log('Scanned QR Code Value:', scannedValue); // Log the scanned value to the console
+    if (!isNaN(Number(scannedValue))) {
+      // It's a number, fetch data from the endpoint
+      fetchData(scannedValue);
+    } else {
+      Alert.alert('Invalid QR Code', `${scannedValue} is not a number.`);
+    }
+    setScanning(false);
+  };
+
+  const fetchData = async (barcode_id: string) => {
+    console.log('Fetching data for barcode ID:', barcode_id);
+    try {
+      const response = await fetch(`http://ec2-3-89-122-120.compute-1.amazonaws.com/transactions/latest?barcode_id=${barcode_id}`);
+      const json = await response.json();
+      setData(json);
+    } catch (error) {
+      Alert.alert('Error', 'Error fetching data from the server.');
+    }
+  };
+
+  if (hasPermission === null) {
+    return <View />;
+  }
+  if (hasPermission === false) {
+    return <Text>No access to camera</Text>;
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({ ios: 'cmd + d', android: 'cmd + m' })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      {scanning ? (
+        <>
+          <CameraView
+            style={StyleSheet.absoluteFillObject}
+            facing="back"
+            onBarcodeScanned={(onBarcodeScan)}
+          />
+          <TouchableOpacity style={styles.closeButton} onPress={() => setScanning(false)}>
+            <Text style={styles.closeButtonText}>X</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <Button title="Scan QR Code" onPress={() => setScanning(true)} />
+          </View>
+          {data && (
+            <Text style={styles.dataText}>{JSON.stringify(data, null, 2)}</Text>
+          )}
+        </>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  dataText: {
+    marginTop: 20,
+    fontSize: 16,
+    paddingHorizontal: 20,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
+  closeButton: {
     position: 'absolute',
+    top: 40,
+    left: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 10,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 18,
   },
 });
